@@ -16,6 +16,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -25,8 +26,6 @@ import (
 	"time"
 
 	"github.com/alecthomas/units"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/grafana/regexp"
 	"github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -73,7 +72,7 @@ const (
 )
 
 // Load parses the YAML input s into a Config.
-func Load(s string, expandExternalLabels bool, logger log.Logger) (*Config, error) {
+func Load(s string, expandExternalLabels bool, logger *slog.Logger) (*Config, error) {
 	cfg := &Config{}
 	// If the entire config body is empty the UnmarshalYAML method is
 	// never called. We thus have to set the DefaultConfig at the entry
@@ -98,11 +97,11 @@ func Load(s string, expandExternalLabels bool, logger log.Logger) (*Config, erro
 			if v := os.Getenv(s); v != "" {
 				return v
 			}
-			level.Warn(logger).Log("msg", "Empty environment variable", "name", s)
+			logger.Warn("Empty environment variable", "name", s)
 			return ""
 		})
 		if newV != v.Value {
-			level.Debug(logger).Log("msg", "External label replaced", "label", v.Name, "input", v.Value, "output", newV)
+			logger.Debug("External label replaced", "label", v.Name, "input", v.Value, "output", newV)
 		}
 		// Note newV can be blank. https://github.com/prometheus/prometheus/issues/11024
 		b.Add(v.Name, newV)
@@ -112,7 +111,7 @@ func Load(s string, expandExternalLabels bool, logger log.Logger) (*Config, erro
 }
 
 // LoadFile parses the given YAML file into a Config.
-func LoadFile(filename string, agentMode, expandExternalLabels bool, logger log.Logger) (*Config, error) {
+func LoadFile(filename string, agentMode, expandExternalLabels bool, logger *slog.Logger) (*Config, error) {
 	content, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
@@ -429,6 +428,8 @@ type GlobalConfig struct {
 	RuleQueryOffset model.Duration `yaml:"rule_query_offset,omitempty"`
 	// File to which PromQL queries are logged.
 	QueryLogFile string `yaml:"query_log_file,omitempty"`
+	// File to which scrape failures are logged.
+	ScrapeFailureLogFile string `yaml:"scrape_failure_log_file,omitempty"`
 	// The labels to add to any timeseries that this Prometheus instance scrapes.
 	ExternalLabels labels.Labels `yaml:"external_labels,omitempty"`
 	// An uncompressed response body larger than this many bytes will cause the
@@ -529,6 +530,7 @@ func validateAcceptScrapeProtocols(sps []ScrapeProtocol) error {
 // SetDirectory joins any relative file paths with dir.
 func (c *GlobalConfig) SetDirectory(dir string) {
 	c.QueryLogFile = config.JoinDir(dir, c.QueryLogFile)
+	c.ScrapeFailureLogFile = config.JoinDir(dir, c.ScrapeFailureLogFile)
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -591,6 +593,7 @@ func (c *GlobalConfig) isZero() bool {
 		c.EvaluationInterval == 0 &&
 		c.RuleQueryOffset == 0 &&
 		c.QueryLogFile == "" &&
+		c.ScrapeFailureLogFile == "" &&
 		c.ScrapeProtocols == nil
 }
 
@@ -632,6 +635,8 @@ type ScrapeConfig struct {
 	ScrapeProtocols []ScrapeProtocol `yaml:"scrape_protocols,omitempty"`
 	// Whether to scrape a classic histogram that is also exposed as a native histogram.
 	ScrapeClassicHistograms bool `yaml:"scrape_classic_histograms,omitempty"`
+	// File to which scrape failures are logged.
+	ScrapeFailureLogFile string `yaml:"scrape_failure_log_file,omitempty"`
 	// The HTTP resource path on which to fetch metrics from targets.
 	MetricsPath string `yaml:"metrics_path,omitempty"`
 	// The URL scheme with which to fetch metrics from targets.
@@ -684,6 +689,7 @@ type ScrapeConfig struct {
 func (c *ScrapeConfig) SetDirectory(dir string) {
 	c.ServiceDiscoveryConfigs.SetDirectory(dir)
 	c.HTTPClientConfig.SetDirectory(dir)
+	c.ScrapeFailureLogFile = config.JoinDir(dir, c.ScrapeFailureLogFile)
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -765,6 +771,9 @@ func (c *ScrapeConfig) Validate(globalConfig GlobalConfig) error {
 	if c.KeepDroppedTargets == 0 {
 		c.KeepDroppedTargets = globalConfig.KeepDroppedTargets
 	}
+	if c.ScrapeFailureLogFile == "" {
+		c.ScrapeFailureLogFile = globalConfig.ScrapeFailureLogFile
+	}
 
 	if c.ScrapeProtocols == nil {
 		c.ScrapeProtocols = globalConfig.ScrapeProtocols
@@ -774,10 +783,10 @@ func (c *ScrapeConfig) Validate(globalConfig GlobalConfig) error {
 	}
 
 	switch globalConfig.MetricNameValidationScheme {
-	case "", LegacyValidationConfig:
-	case UTF8ValidationConfig:
+	case LegacyValidationConfig:
+	case "", UTF8ValidationConfig:
 		if model.NameValidationScheme != model.UTF8Validation {
-			return fmt.Errorf("utf8 name validation requested but feature not enabled via --enable-feature=utf8-names")
+			panic("utf8 name validation requested but model.NameValidationScheme is not set to UTF8")
 		}
 	default:
 		return fmt.Errorf("unknown name validation method specified, must be either 'legacy' or 'utf8', got %s", globalConfig.MetricNameValidationScheme)

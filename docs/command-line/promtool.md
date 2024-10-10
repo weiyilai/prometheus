@@ -15,7 +15,7 @@ Tooling for the Prometheus monitoring system.
 | <code class="text-nowrap">-h</code>, <code class="text-nowrap">--help</code> | Show context-sensitive help (also try --help-long and --help-man). |
 | <code class="text-nowrap">--version</code> | Show application version. |
 | <code class="text-nowrap">--experimental</code> | Enable experimental commands. |
-| <code class="text-nowrap">--enable-feature</code> <code class="text-nowrap">...<code class="text-nowrap"> | Comma separated feature names to enable (only PromQL related and no-default-scrape-port). See https://prometheus.io/docs/prometheus/latest/feature_flags/ for the options and more details. |
+| <code class="text-nowrap">--enable-feature</code> <code class="text-nowrap">...<code class="text-nowrap"> | Comma separated feature names to enable. Currently unused. |
 
 
 
@@ -575,7 +575,7 @@ Dump samples from a TSDB.
 
 | Flag | Description | Default |
 | --- | --- | --- |
-| <code class="text-nowrap">--sandbox-dir-root</code> | Root directory where a sandbox directory would be created in case WAL replay generates chunks. The sandbox directory is cleaned up at the end. | `data/` |
+| <code class="text-nowrap">--sandbox-dir-root</code> | Root directory where a sandbox directory will be created, this sandbox is used in case WAL replay generates chunks (default is the database path). The sandbox is cleaned up at the end. |  |
 | <code class="text-nowrap">--min-time</code> | Minimum timestamp to dump. | `-9223372036854775808` |
 | <code class="text-nowrap">--max-time</code> | Maximum timestamp to dump. | `9223372036854775807` |
 | <code class="text-nowrap">--match</code> <code class="text-nowrap">...<code class="text-nowrap"> | Series selector. Can be specified multiple times. | `{__name__=~'(?s:.*)'}` |
@@ -602,7 +602,7 @@ Dump samples from a TSDB.
 
 | Flag | Description | Default |
 | --- | --- | --- |
-| <code class="text-nowrap">--sandbox-dir-root</code> | Root directory where a sandbox directory would be created in case WAL replay generates chunks. The sandbox directory is cleaned up at the end. | `data/` |
+| <code class="text-nowrap">--sandbox-dir-root</code> | Root directory where a sandbox directory will be created, this sandbox is used in case WAL replay generates chunks (default is the database path). The sandbox is cleaned up at the end. |  |
 | <code class="text-nowrap">--min-time</code> | Minimum timestamp to dump. | `-9223372036854775808` |
 | <code class="text-nowrap">--max-time</code> | Maximum timestamp to dump. | `9223372036854775807` |
 | <code class="text-nowrap">--match</code> <code class="text-nowrap">...<code class="text-nowrap"> | Series selector. Can be specified multiple times. | `{__name__=~'(?s:.*)'}` |
